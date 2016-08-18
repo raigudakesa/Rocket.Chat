@@ -48,7 +48,7 @@ class API extends Restivus {
 };
 
 
-//RocketChat.API = {}
+RocketChat.API = RocketChat.API ? RocketChat.API : {};
 
 RocketChat.API.v2 = new API({
 	version: 'v2',
@@ -57,12 +57,39 @@ RocketChat.API.v2 = new API({
 	enableCors: false,
 	auth: {
 		user: function(){
-			let headers = this.request.headers;
-			let queryParams = this.queryParams;
-			let bodyParams = this.bodyParams;
-			console.log(headers);
-			console.log(params);
-			return {};
+			var accessToken, bearerToken, getAccessToken, getToken, headerToken, matches, user;
+			headerToken = this.request.headers['authorization'];
+			getToken = this.request.query.access_token;
+			if (headerToken) {
+				if (matches = headerToken.match(/Bearer\s(\S+)/)) {
+					headerToken = matches[1];
+				} else {
+					headerToken = undefined;
+				}
+			}
+			bearerToken = headerToken || getToken;
+			if (!bearerToken) {
+				return;
+			}
+			getAccessToken = Meteor.wrapAsync(authServer.oauth.model.getAccessToken, authServer.oauth.model);
+			accessToken = getAccessToken(bearerToken);
+
+			if (!accessToken) {
+				return;
+			}
+			if (accessToken.expires && accessToken.expires < new Date()) {
+				console.log("[OAuth2Server]", "Token expired "+(new Date())+"/"+accessToken.expires+"");
+				return;
+			}
+			user = RocketChat.models.Users.findOne(accessToken.userId);
+			
+			console.log(user);
+			if (!user) {
+				return;
+			}
+			return {
+				user: user
+			};
 		}
 	}
 });
